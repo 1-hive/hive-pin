@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/one-hive/hivepin/schemas/pin-v1.schema.json",
+  "title": "One Hive pin (v1)",
+  "description": "Canonical representation of an immutable reference to a file or directory at an exact git commit. Strict consumers MUST reject unknown fields.",
+  "type": "object",
+  "unevaluatedProperties": false,
+  "required": ["version", "repository", "commit_oid", "path", "kind", "object_oid", "content_digest"],
+  "properties": {
+    "version": { "const": 1 },
+    "repository": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
+      "description": "Stable repository id resolved through the repository registry."
+    },
+    "commit_oid": {
+      "type": "string",
+      "pattern": "^(sha1:[0-9a-f]{40}|sha256:[0-9a-f]{64})$",
+      "description": "Algorithm-prefixed full commit OID. Never abbreviated, never a ref."
+    },
+    "path": {
+      "type": "string",
+      "minLength": 1,
+      "description": "NFC, repository-relative POSIX path; no leading '/', no '.'/'..'/empty component, no NUL/CR/LF/backslash. The single '.' means the whole repository tree."
+    },
+    "kind": { "enum": ["file", "tree"] },
+    "mode": {
+      "enum": ["100644", "100755"],
+      "description": "Present iff kind == 'file'."
+    },
+    "object_oid": {
+      "type": "string",
+      "pattern": "^(sha1:[0-9a-f]{40}|sha256:[0-9a-f]{64})$",
+      "description": "Algorithm-prefixed full blob or tree OID at commit_oid:path."
+    },
+    "content_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "description": "Independent SHA-256 over the raw file bytes (file) or the canonical tree manifest (tree)."
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "kind": { "const": "file" } } },
+      "then": { "required": ["mode"] },
+      "else": { "not": { "required": ["mode"] } }
+    }
+  ]
+}
