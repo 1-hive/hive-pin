@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/one-hive/hivepin/schemas/repository-registry-v1.schema.json",
+  "$id": "https://github.com/1-hive/hive-pin/schemas/repository-registry-v1.schema.json",
   "title": "One Hive repository registry (v1)",
   "description": "Operator-controlled, version-controlled map from repository id to its canonical remotes and publication policy. Credentials MUST NOT be stored here.",
   "type": "object",

@@ -5,9 +5,9 @@ For a hive operator standing `hivepin` up, and for another hive adopting it.
 ## 1. Install
 
 ```bash
-uv tool install "git+https://github.com/one-hive/hivepin"        # isolated CLI
+uv tool install "git+https://github.com/1-hive/hive-pin"        # isolated CLI
 # or
-pip install "git+https://github.com/one-hive/hivepin"            # into an env
+pip install "git+https://github.com/1-hive/hive-pin"            # into an env
 ```
 
 Runtime needs: Python ≥ 3.10, `git` on `PATH`, `tar` is **not** used. No other
@@ -98,7 +98,7 @@ hive-pin materialize "$pin" ./task-1234-inputs
 ## 5. CI / conformance
 
 ```bash
-git clone https://github.com/one-hive/hivepin && cd hivepin
+git clone https://github.com/1-hive/hive-pin && cd hive-pin
 uv venv && uv pip install -e ".[test]"
 uv run pytest            # 116 tests: determinism, history, path safety, tampering, non-interference
 ```

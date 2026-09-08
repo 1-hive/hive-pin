@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/one-hive/hivepin/schemas/pin-v1.schema.json",
+  "$id": "https://github.com/1-hive/hive-pin/schemas/pin-v1.schema.json",
   "title": "One Hive pin (v1)",
   "description": "Canonical representation of an immutable reference to a file or directory at an exact git commit. Strict consumers MUST reject unknown fields.",
   "type": "object",

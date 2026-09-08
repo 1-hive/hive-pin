@@ -35,10 +35,10 @@ those are later releases that consume pins.
 pip install .
 
 # or straight from git
-pip install "git+https://github.com/one-hive/hivepin"
+pip install "git+https://github.com/1-hive/hive-pin"
 
 # or as an isolated tool
-uv tool install "git+https://github.com/one-hive/hivepin"
+uv tool install "git+https://github.com/1-hive/hive-pin"
 ```
 
 Zero-install also works — the package is importable from `src/` and the CLI is
