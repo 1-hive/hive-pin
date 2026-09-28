@@ -7,3 +7,6 @@ dist/
 .pytest_cache/
 .coverage
 htmlcov/
+*.swp
+*.swo
+.*.swp
