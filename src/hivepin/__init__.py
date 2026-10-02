@@ -28,6 +28,7 @@ from .core import (
 from .errors import ERROR_CODES, PinError
 from .pin import AnyPin, Pin, PinV2, parse_pin, pin_from_dict
 from .registry import Registry, Repository
+from .v2 import is_ancestor
 
 __version__ = "2.0.0"
 SCHEMA_VERSION = 1          # the v1 pin schema; v2 pins are PinV2
@@ -53,6 +54,7 @@ __all__ = [
     "VerificationResult",
     "VerificationResultV2",
     "__version__",
+    "is_ancestor",
     "materialize",
     "mint",
     "parse_pin",

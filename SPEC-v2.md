@@ -72,6 +72,14 @@ Unchanged from v1 except for these points:
 
 The result adds `omitted: [{path, kind, reason}]`, listing every entry not created (§5). An empty list means the whole scope was materialized.
 
+### is_ancestor
+
+```text
+is_ancestor(ancestor, descendant, registry, offline=False) -> bool
+```
+
+Library only. Both must be v2 pins of the same repository (else `INVALID_PIN` or `REPOSITORY_MISMATCH`). Both are verified first, then git decides whether the first commit is an ancestor of, or equal to, the second. A consumer uses it to check that a change starts where it says it does, e.g. a `base` before its `code` (§8).
+
 ## 4. Integrity without `content_digest`
 
 v1 keeps an independent SHA-256 digest because git objects are named by SHA-1. In v2, integrity is the git hash chain instead: commit → tree → blobs, recomputed by hivepin itself and never trusted from a cache or `local_path`. A tampered object in a cache or clone is detected, as in v1 §19.6.
@@ -103,7 +111,7 @@ Omitting is never silent: `omitted` is part of the result, and a consumer that n
 
 - `verify` and `materialize` accept v1 and v2 pins. v1 pins keep exactly their v1 semantics, and old records stay verifiable.
 - `mint` emits v2. `--format 1` (library: `version=1`) stays available for consumers that haven't moved yet.
-- Library: `PinV2` is the v2 pin; `parse_pin` and `pin_from_dict` read either version. `Pin` remains the v1 pin.
+- Library: `PinV2` is the v2 pin; `parse_pin` and `pin_from_dict` read either version; `is_ancestor` compares two v2 pins. `Pin` remains the v1 pin.
 - The registry is unchanged (registry v1).
 - Deliverables: `pin-v2.schema.json`, the encoder and checks above, and tests (§9).
 

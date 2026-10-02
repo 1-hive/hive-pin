@@ -105,7 +105,7 @@ is empty.
 ```bash
 git clone https://github.com/1-hive/hive-pin && cd hive-pin
 uv venv && uv pip install -e ".[test]"
-uv run python -m pytest  # 150 tests: v1 (SPEC §19) and v2 (SPEC-v2 §9)
+uv run python -m pytest  # 151 tests: v1 (SPEC §19) and v2 (SPEC-v2 §9)
 ```
 
 If you reimplement `hivepin` for another language, run your implementation

@@ -20,9 +20,9 @@ Based on Mike's proposal "What anything is, is a commit".
 - **`mint` emits v2 by default** (breaking): `hive-pin mint REPO [PATH]`, where no
   path (or `.`) pins the whole commit. `--format 1` / `version=1` mints v1.
 - `verify` and `materialize` accept v1 and v2; v1 pins keep their v1 semantics.
-- Library: `PinV2`, `parse_pin`, `pin_from_dict`, `AnyPin`, and the `…V2` result
-  types. `Pin` is still the v1 pin.
-- 34 new tests (150 in all).
+- Library: `PinV2`, `parse_pin`, `pin_from_dict`, `AnyPin`, `is_ancestor`, and the
+  `…V2` result types. `Pin` is still the v1 pin.
+- 35 new tests (151 in all).
 
 ## [1.0.0] — 2026-09-08
 

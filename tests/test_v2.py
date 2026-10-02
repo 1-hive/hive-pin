@@ -334,3 +334,20 @@ def test_cli_format_1(scenario):
     assert m.returncode == 0 and json.loads(m.stdout)["kind"] == "tree"
     bad = _cli(scenario, "mint", "--format", "1", "workspace")
     assert bad.returncode == 2
+
+
+# ---------------------------------------------------------------------- ancestry
+def test_is_ancestor(scenario):
+    from hivepin import is_ancestor
+    base = m2(scenario)
+    scenario.write("feature.txt", "f\n")
+    scenario.commit_all("feature")
+    scenario.push()
+    tip = m2(scenario)
+    reg, cfg = scenario.registry(), scenario.config()
+    assert is_ancestor(base, tip, reg, config=cfg)
+    assert is_ancestor(tip, tip, reg, config=cfg)
+    assert not is_ancestor(tip, base, reg, config=cfg)
+    with pytest.raises(PinError) as e:
+        is_ancestor(PinV2("other", base.commit_oid), tip, reg, config=cfg)
+    assert e.value.code == "REPOSITORY_MISMATCH"

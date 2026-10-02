@@ -361,3 +361,26 @@ def _check_output(tmp: Path, links: set[tuple[str, ...]]) -> None:
                     raise PinError("UNSUPPORTED_OBJECT", f"unexpected symlink after extraction: {p}")
             elif not (stat.S_ISDIR(st.st_mode) or stat.S_ISREG(st.st_mode)):
                 raise PinError("UNSUPPORTED_OBJECT", f"non-regular file after extraction: {p}")
+
+
+# --------------------------------------------------------------------------- #
+# ancestry
+# --------------------------------------------------------------------------- #
+def is_ancestor(ancestor: PinV2, descendant: PinV2, registry: Registry, *,
+                offline: bool = False, config: Config | None = None) -> bool:
+    """Whether ``ancestor``'s commit is an ancestor of (or equal to) ``descendant``'s.
+
+    Both must be v2 pins of the same repository; both are verified first (with the
+    publication check unless offline). Used to check that a reviewed change starts
+    where it says it does (a ``base`` before its ``code``)."""
+    if not (isinstance(ancestor, PinV2) and isinstance(descendant, PinV2)):
+        raise PinError("INVALID_PIN", "ancestry is defined for v2 pins only")
+    if ancestor.repository != descendant.repository:
+        raise PinError("REPOSITORY_MISMATCH", "ancestry needs two pins of one repository")
+    cfg = config or Config.load()
+    a = _verify_v2(ancestor, registry, offline=offline, config=cfg)
+    d = _verify_v2(descendant, registry, offline=offline, config=cfg)
+    for source in dict.fromkeys((d._source, a._source)):
+        if gitio.has_commit(source, ancestor.commit_hex) and gitio.has_commit(source, descendant.commit_hex):
+            return gitio.is_ancestor(source, ancestor.commit_hex, descendant.commit_hex)
+    raise PinError("COMMIT_NOT_FOUND", "no local source holds both commits")
