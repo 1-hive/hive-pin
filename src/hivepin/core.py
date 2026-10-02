@@ -21,7 +21,7 @@ from .canonical import (
 from .config import Config
 from .errors import PinError
 from .gitio import TreeEntry
-from .pin import Pin
+from .pin import Pin, PinV2
 from .registry import Registry, Repository
 
 _FILE_MODES = ("100644", "100755")
@@ -145,6 +145,35 @@ def _check_publication(repo: Repository, commit_hex: str, cfg: Config) -> Path:
                    allowed_ref_patterns=list(repo.allowed_ref_patterns))
 
 
+def _resolve_source(repo: Repository, commit_hex: str, offline: bool,
+                    cfg: Config) -> tuple[Path, str]:
+    """The repository to read the commit from (the local clone if it has it, else
+    the publication cache), and the publication status."""
+    local = repo.local if (repo.local and gitio.is_git_repo(repo.local)) else None
+    if local is not None and gitio.object_format(local) != repo.object_format:
+        raise PinError("REPOSITORY_MISMATCH",
+                       f"repository {repo.id!r} local clone object format disagrees with registry")
+
+    publication_status = "not_checked"
+    source: Path | None = None
+    if local is not None and gitio.has_commit(local, commit_hex):
+        source = local
+
+    if not offline:
+        cache = _check_publication(repo, commit_hex, cfg)
+        publication_status = "verified"
+        if source is None:
+            source = cache
+    elif source is None:
+        cache = cfg.cache_dir / f"{repo.id}.git"
+        if gitio.is_git_repo(cache) and gitio.has_commit(cache, commit_hex):
+            source = cache
+        else:
+            raise PinError("COMMIT_NOT_FOUND",
+                           f"commit {commit_hex[:12]} is not in any local cache (offline)")
+    return source, publication_status
+
+
 def _classify_entry(entry: TreeEntry) -> str:
     if entry.mode in UNSUPPORTED_MODES:
         raise PinError("UNSUPPORTED_OBJECT",
@@ -214,9 +243,18 @@ def _content_digest(source: Path, pin: Pin, cfg: Config) -> str:
 # --------------------------------------------------------------------------- #
 # mint  (SPEC 12.1)
 # --------------------------------------------------------------------------- #
-def mint(repository: str, path: str, registry: Registry, *,
+def mint(repository: str, path: str | None, registry: Registry, *,
          commit: str | None = None, offline: bool = False,
-         config: Config | None = None) -> MintResult:
+         config: Config | None = None, version: int = 2) -> MintResult | MintResultV2:
+    """Mint a pin. ``version=2`` (the default) pins a commit, narrowed to ``path``
+    when one is given (None or '.' mean the whole commit); ``version=1`` mints a
+    v1 file or tree pin and needs a path."""
+    if version == 2:
+        return _mint_v2(repository, path, registry, commit=commit, offline=offline, config=config)
+    if version != 1:
+        raise PinError("UNSUPPORTED_VERSION", f"cannot mint pin version {version!r}")
+    if path is None:
+        raise PinError("INVALID_PATH", "a v1 pin needs a path ('.' for the whole tree)")
     cfg = config or Config.load()
     repo = registry.get(repository)
     local = _require_local(repo)
@@ -266,8 +304,10 @@ def mint(repository: str, path: str, registry: Registry, *,
 # --------------------------------------------------------------------------- #
 # verify  (SPEC 12.2)
 # --------------------------------------------------------------------------- #
-def verify(pin: Pin, registry: Registry, *, offline: bool = False,
-           config: Config | None = None) -> VerificationResult:
+def verify(pin: Pin | PinV2, registry: Registry, *, offline: bool = False,
+           config: Config | None = None) -> VerificationResult | VerificationResultV2:
+    if isinstance(pin, PinV2):
+        return _verify_v2(pin, registry, offline=offline, config=config)
     cfg = config or Config.load()
     repo = registry.get(pin.repository)
 
@@ -275,28 +315,7 @@ def verify(pin: Pin, registry: Registry, *, offline: bool = False,
         raise PinError("OBJECT_FORMAT_MISMATCH",
                        f"pin uses {pin.object_format}, registry says {repo.object_format}")
 
-    local = repo.local if (repo.local and gitio.is_git_repo(repo.local)) else None
-    if local is not None and gitio.object_format(local) != repo.object_format:
-        raise PinError("REPOSITORY_MISMATCH",
-                       f"repository {repo.id!r} local clone object format disagrees with registry")
-
-    publication_status = "not_checked"
-    source: Path | None = None
-    if local is not None and gitio.has_commit(local, pin.commit_hex):
-        source = local
-
-    if not offline:
-        cache = _check_publication(repo, pin.commit_hex, cfg)
-        publication_status = "verified"
-        if source is None:
-            source = cache
-    elif source is None:
-        cache = cfg.cache_dir / f"{repo.id}.git"
-        if gitio.is_git_repo(cache) and gitio.has_commit(cache, pin.commit_hex):
-            source = cache
-        else:
-            raise PinError("COMMIT_NOT_FOUND",
-                           f"commit {pin.commit_hex[:12]} is not in any local cache (offline)")
+    source, publication_status = _resolve_source(repo, pin.commit_hex, offline, cfg)
 
     entry = gitio.entry_at(source, pin.commit_hex, pin.path)
     actual_kind = _classify_entry(entry)
@@ -321,8 +340,11 @@ def verify(pin: Pin, registry: Registry, *, offline: bool = False,
 # --------------------------------------------------------------------------- #
 # materialize  (SPEC 12.3)
 # --------------------------------------------------------------------------- #
-def materialize(pin: Pin, destination: str | os.PathLike, registry: Registry, *,
-                offline: bool = False, config: Config | None = None) -> MaterializationResult:
+def materialize(pin: Pin | PinV2, destination: str | os.PathLike, registry: Registry, *,
+                offline: bool = False,
+                config: Config | None = None) -> MaterializationResult | MaterializationResultV2:
+    if isinstance(pin, PinV2):
+        return _materialize_v2(pin, destination, registry, offline=offline, config=config)
     cfg = config or Config.load()
     result = verify(pin, registry, offline=offline, config=cfg)
     source = result._source
@@ -403,3 +425,13 @@ def _assert_no_symlinks(root: Path) -> None:
             st = p.lstat()
             if not (stat.S_ISDIR(st.st_mode) or stat.S_ISREG(st.st_mode)):
                 raise PinError("UNSUPPORTED_OBJECT", f"non-regular file after extraction: {p}")
+
+
+from .v2 import (  # noqa: E402  (v2 builds on the helpers above)
+    MaterializationResultV2,
+    MintResultV2,
+    VerificationResultV2,
+    _materialize_v2,
+    _mint_v2,
+    _verify_v2,
+)

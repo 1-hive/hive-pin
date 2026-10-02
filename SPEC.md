@@ -1,6 +1,6 @@
 # One Hive R0: Immutable Git Pinning Specification
 
-**Status:** Frozen — implemented by [`hivepin`](README.md) 1.0  
+**Status:** Frozen — implemented by [`hivepin`](README.md) 1.0 and 2.x. Pin format v2 is [`SPEC-v2.md`](SPEC-v2.md); v1 pins keep the semantics below.  
 **Version:** 1.0  
 **Target release:** R0  
 **Primary consumers:** One Hive record, projections, worker runtime, skill registry, review harness, replay tooling

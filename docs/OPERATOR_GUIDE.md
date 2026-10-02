@@ -79,8 +79,9 @@ clone's branches, tags, `FETCH_HEAD`, or stash.
 **A worker pinning a result** (has a local clone, has pushed):
 
 ```bash
-hive-pin --json mint mtg-player src/policy.py --output result.pin
-# embed the canonical object (result.pin without its trailing LF) in the event
+hive-pin --json mint mtg-player --commit "$TIP" --output code.pin      # the whole commit
+hive-pin --json mint workspace reports/result.md --output result.pin  # one file
+# embed the canonical object (the .pin file without its trailing LF) in the event
 ```
 
 **A reviewer / gateway checking a pin from an event** (no local clone needed):
@@ -95,17 +96,21 @@ hive-pin verify "$(printf '%s' "$event_ref")"      # exit 0, or a code + exit 3/
 hive-pin materialize "$pin" ./task-1234-inputs
 ```
 
+With `--json`, the result's `omitted` lists every symlink and submodule that was
+not created (SPEC-v2 §5). A consumer that needs the complete tree checks that it
+is empty.
+
 ## 5. CI / conformance
 
 ```bash
 git clone https://github.com/1-hive/hive-pin && cd hive-pin
 uv venv && uv pip install -e ".[test]"
-uv run pytest            # 116 tests: determinism, history, path safety, tampering, non-interference
+uv run python -m pytest  # 150 tests: v1 (SPEC §19) and v2 (SPEC-v2 §9)
 ```
 
 If you reimplement `hivepin` for another language, run your implementation
-against `SPEC.md` §19 and check byte-identical pins against this one for a shared
-fixture repo.
+against `SPEC.md` §19 and `SPEC-v2.md` §9, and check byte-identical pins against
+this one for a shared fixture repo.
 
 ## 6. Non-Python hives
 
@@ -113,8 +118,9 @@ The portable contract is `SPEC.md` + `schemas/`. Options, cheapest first:
 
 1. Shell out to `hive-pin --json` and read the result object.
 2. Vendor `src/hivepin/` (pure stdlib) and call it from a small subprocess shim.
-3. Reimplement to `schemas/pin-v1.schema.json`,
-   `schemas/repository-registry-v1.schema.json`, and `SPEC.md` §8/§11 for the
-   canonical bytes and the manifest.
+3. Reimplement to `schemas/pin-v2.schema.json`, `schemas/pin-v1.schema.json`,
+   `schemas/repository-registry-v1.schema.json`, `SPEC-v2.md`, and `SPEC.md`
+   §8/§11 for v1's canonical bytes and manifest.
 
-The registry file format and the pin bytes are stable across `hivepin` 1.x.
+The registry file format and the pin bytes of each pin version never change; a
+new format is a new pin version. `hivepin` 2.x mints v2 and reads v1 and v2.

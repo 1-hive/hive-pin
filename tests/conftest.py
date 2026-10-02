@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 
 from hivepin.config import Config
+from hivepin.core import mint
 from hivepin.registry import Registry
 
 _GIT_ENV = {
@@ -101,3 +102,8 @@ def scenario(tmp_path: Path) -> Scenario:
 @pytest.fixture
 def sha256_scenario(tmp_path: Path) -> Scenario:
     return _make_scenario(tmp_path / "s256", object_format="sha256")
+
+
+def v1_mint(*args, **kwargs):
+    """The v1 suite mints v1 pins (v2 is the default)."""
+    return mint(*args, version=1, **kwargs)

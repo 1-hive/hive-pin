@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/1-hive/hive-pin/schemas/pin-v2.schema.json",
+  "title": "One Hive pin (v2)",
+  "description": "An immutable reference to a commit in a registered repository, optionally narrowed to a file or directory in it. The commit is what the pin certifies; a path, when present, is what the referring event is about and is binding for consumers. Strict consumers MUST reject unknown fields.",
+  "type": "object",
+  "unevaluatedProperties": false,
+  "required": ["version", "repository", "commit_oid"],
+  "properties": {
+    "version": { "const": 2 },
+    "repository": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
+      "description": "Stable repository id resolved through the repository registry."
+    },
+    "commit_oid": {
+      "type": "string",
+      "pattern": "^(sha1:[0-9a-f]{40}|sha256:[0-9a-f]{64})$",
+      "description": "Algorithm-prefixed full commit OID. Never abbreviated, never a ref."
+    },
+    "path": {
+      "type": "string",
+      "minLength": 1,
+      "not": { "const": "." },
+      "description": "NFC, repository-relative POSIX path to a regular file or a directory; no leading '/', no '.'/'..'/empty component, no NUL/CR/LF/backslash. Absent: the whole commit."
+    }
+  }
+}

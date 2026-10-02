@@ -5,14 +5,14 @@ import dataclasses
 
 import pytest
 
-from hivepin.core import mint, verify
+from hivepin.core import verify
 from hivepin.errors import PinError
 from hivepin.pin import Pin
-from tests.conftest import git
+from tests.conftest import git, v1_mint
 
 
 def minted(scenario, path="reports/result.md"):
-    return mint("workspace", path, scenario.registry(), config=scenario.config()).pin
+    return v1_mint("workspace", path, scenario.registry(), config=scenario.config()).pin
 
 
 def test_verify_roundtrip_file_and_tree(scenario):

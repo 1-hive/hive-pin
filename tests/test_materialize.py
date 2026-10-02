@@ -5,13 +5,13 @@ import os
 
 import pytest
 
-from hivepin.core import materialize, mint
+from hivepin.core import materialize
 from hivepin.errors import PinError
-from tests.conftest import git
+from tests.conftest import git, v1_mint
 
 
 def minted(scenario, path):
-    return mint("workspace", path, scenario.registry(), config=scenario.config()).pin
+    return v1_mint("workspace", path, scenario.registry(), config=scenario.config()).pin
 
 
 def test_materialize_file_preserves_path_and_bytes(scenario, tmp_path):
@@ -92,7 +92,7 @@ def test_tree_with_symlink_is_rejected(scenario, tmp_path):
     scenario.push()
     # mint refuses it
     with pytest.raises(PinError) as e:
-        mint("workspace", "docs", scenario.registry(), offline=True, config=scenario.config())
+        v1_mint("workspace", "docs", scenario.registry(), offline=True, config=scenario.config())
     assert e.value.code == "UNSUPPORTED_OBJECT"
     # and the extraction primitive refuses it directly
     import hivepin.core as core

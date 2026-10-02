@@ -19,7 +19,7 @@ from . import __version__
 from .config import Config
 from .core import materialize, mint, verify
 from .errors import EXIT_OK, EXIT_USAGE, PinError
-from .pin import Pin
+from .pin import AnyPin, parse_pin
 from .registry import Registry
 
 
@@ -34,7 +34,10 @@ def _build_parser() -> argparse.ArgumentParser:
 
     m = sub.add_parser("mint", help="create a pin from a registered repository")
     m.add_argument("repository")
-    m.add_argument("path", help="repository-relative path, or '.' for the whole tree")
+    m.add_argument("path", nargs="?",
+                   help="repository-relative path; omit (or '.') to pin the whole commit")
+    m.add_argument("--format", choices=("1", "2"), default="2",
+                   help="pin format version (default 2; 1 needs a path, '.' for the whole tree)")
     m.add_argument("--commit", metavar="REV",
                    help="pin this commit instead of the clean worktree HEAD")
     m.add_argument("--output", metavar="FILE", help="write the canonical pin atomically to FILE")
@@ -42,23 +45,23 @@ def _build_parser() -> argparse.ArgumentParser:
                    help="skip the publication check (produces a non-authoritative pin)")
 
     v = sub.add_parser("verify", help="check that a pin still resolves to the same content")
-    v.add_argument("pin", help="canonical pin JSON, a hivepin:v1: envelope, or - for stdin")
+    v.add_argument("pin", help="canonical pin JSON, a hivepin:v1:/v2: envelope, or - for stdin")
     v.add_argument("--offline", action="store_true", help="skip the publication check")
 
     x = sub.add_parser("materialize", help="extract a pin's content into DEST (must not exist)")
-    x.add_argument("pin", help="canonical pin JSON, a hivepin:v1: envelope, or - for stdin")
+    x.add_argument("pin", help="canonical pin JSON, a hivepin:v1:/v2: envelope, or - for stdin")
     x.add_argument("dest")
     x.add_argument("--offline", action="store_true", help="skip the publication check")
 
     s = sub.add_parser("show", help="parse a pin and print its fields (no repository access)")
-    s.add_argument("pin", help="canonical pin JSON, a hivepin:v1: envelope, or - for stdin")
+    s.add_argument("pin", help="canonical pin JSON, a hivepin:v1:/v2: envelope, or - for stdin")
 
     return p
 
 
-def _load_pin(arg: str) -> Pin:
+def _load_pin(arg: str) -> AnyPin:
     text = sys.stdin.read() if arg == "-" else arg
-    return Pin.parse(text)
+    return parse_pin(text)
 
 
 def _emit(obj: dict, as_json: bool, *, human: str) -> None:
@@ -87,8 +90,8 @@ def main(argv: list[str] | None = None) -> int:
         registry = Registry.load(cfg.registry_file(args.registry))
 
         if args.command == "mint":
-            res = mint(args.repository, args.path, registry,
-                       commit=args.commit, offline=args.offline, config=cfg)
+            res = mint(args.repository, args.path, registry, commit=args.commit,
+                       offline=args.offline, config=cfg, version=int(args.format))
             if args.output:
                 _atomic_write(args.output, res.pin.to_file_bytes())
                 _emit({**res.to_dict(), "output": args.output}, args.json,

@@ -149,3 +149,64 @@ def build_manifest(entries: list[dict]) -> bytes:
 
 def manifest_digest(entries: list[dict]) -> str:
     return sha256_hex(build_manifest(entries))
+
+
+# --------------------------------------------------------------------------- #
+# git objects  (v2 integrity: re-hash instead of an independent digest)
+# --------------------------------------------------------------------------- #
+_OID_BYTES = {"sha1": 20, "sha256": 32}
+
+
+def git_object_oid(typ: str, data: bytes, object_format: str) -> str:
+    """Bare hex OID git assigns to an object of this type and content."""
+    h = hashlib.new(object_format)
+    h.update(f"{typ} {len(data)}\x00".encode("ascii"))
+    h.update(data)
+    return h.hexdigest()
+
+
+def parse_tree(data: bytes, object_format: str) -> list[tuple[str, bytes, str]]:
+    """Entries of a raw tree object: (mode, name bytes, bare hex oid)."""
+    n = _OID_BYTES[object_format]
+    out: list[tuple[str, bytes, str]] = []
+    i = 0
+    while i < len(data):
+        sp = data.find(b" ", i)
+        nul = data.find(b"\x00", sp + 1)
+        if sp < 0 or nul < 0 or nul + 1 + n > len(data):
+            raise PinError("OBJECT_MISMATCH", "malformed tree object")
+        mode = data[i:sp].decode("ascii", "replace")
+        out.append((mode.zfill(6), data[sp + 1:nul], data[nul + 1:nul + 1 + n].hex()))
+        i = nul + 1 + n
+    return out
+
+
+def commit_tree(data: bytes) -> str:
+    """The root tree OID named by a raw commit object."""
+    first = data.split(b"\n", 1)[0]
+    if not first.startswith(b"tree "):
+        raise PinError("OBJECT_MISMATCH", "malformed commit object")
+    return first[5:].decode("ascii")
+
+
+def check_path_v2(value: str | None) -> str | None:
+    """A v2 pin path: absent (None) for the whole commit, else a v1-style path.
+    '.' is not a v2 path: the whole commit is written by leaving the path out."""
+    if value is None:
+        return None
+    if value == WHOLE_TREE:
+        raise PinError("INVALID_PATH", "a v2 pin of the whole commit has no path ('.' is v1 only)")
+    return check_path(value)
+
+
+def tree_entry_name(raw: bytes) -> str:
+    """One component of a path inside a pinned tree, validated (v1 §10 rules)."""
+    try:
+        name = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        raise PinError("INVALID_PATH", f"tree entry name is not UTF-8: {raw!r}") from None
+    if name in ("", ".", "..") or "/" in name or any(c in name for c in _FORBIDDEN_CHARS):
+        raise PinError("INVALID_PATH", f"unsafe tree entry name: {name!r}")
+    if name.lower() == ".git":
+        raise PinError("INVALID_PATH", "a tree entry named .git is never materialized")
+    return unicodedata.normalize("NFC", name)

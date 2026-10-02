@@ -1,8 +1,8 @@
-# R0 pin format v2 — draft for review
+# One Hive R0: pin format v2
 
-**Status:** draft, 2026-10-03. Not implemented.
+**Status:** implemented by [`hivepin`](README.md) 2.0.
 **Origin:** Mike's proposal "What anything is, is a commit" (2026-10-02), with three additions: a binding `path`, a pinned review base, and safe symlinks.
-**Scope:** changes to `SPEC.md` (R0 v1.0), then what follows for hive-record (R1/R2) and the 1-hive deployment. Sections not mentioned are unchanged.
+**Scope:** the changes to [`SPEC.md`](SPEC.md) (R0 v1.0). Sections not mentioned here are unchanged and apply to v2 pins too. §8 says what follows for hive-record and the 1-hive deployment. A one-page overview is in [`docs/pin-v2.md`](docs/pin-v2.md).
 
 ## 0. Why
 
@@ -41,10 +41,12 @@ Canonical encoding, strict consumers (unknown fields rejected), and the rule "no
 ### mint
 
 ```text
-hive-pin mint REPOSITORY [PATH] [--commit COMMIT] [--output PIN_FILE] [--json]
+hive-pin mint REPOSITORY [PATH] [--commit COMMIT] [--format 1|2] [--output PIN_FILE] [--json]
 ```
 
-- Without `PATH`: a whole-commit pin.
+- Without `PATH`: a whole-commit pin. On input, `.` also means the whole commit; the pin then has no path.
+- `--format 1` mints a v1 pin (`SPEC.md`), which needs a path. The default is 2.
+- The result names the `kind` of the pinned object: `commit`, `tree` or `file`. It is informative and not part of the pin.
 - Worktree mode (no `--commit`): refuses with `DIRTY_PATH` if the pinned scope differs from `HEAD`. For a whole-commit pin, that means any modified tracked file or any untracked, non-ignored file anywhere in the repository. With a path, the v1 rules apply.
 - Publication check: unchanged (v1 §13). A pin can't be minted before the commit is pushed.
 
@@ -55,9 +57,9 @@ It checks, in order:
 2. that the commit exists and its type;
 3. publication, unless offline;
 4. that the path exists and is a file or tree, when a path is given;
-5. **object integrity along the path:** recompute the hash of the commit object and of each tree object from the root to the path, and compare each with the OID it is stored under.
+5. **object integrity along the path:** recompute the hash of the commit object, of each tree object from the root to the path, and of the object at the path, and compare each with the OID it is stored under (`OBJECT_MISMATCH`).
 
-Verify does not walk the pinned tree. A whole-commit pin verifies in constant time, so admitting a ref stays cheap.
+Verify does not walk the pinned tree below the path, so a whole-commit pin verifies in a few object reads and admitting a ref stays cheap. Its result names the `kind`, as mint's does.
 
 ### materialize
 
@@ -65,6 +67,7 @@ Unchanged from v1 except for these points:
 - A whole-commit pin extracts the repository root into the destination. A path pin extracts that path, keeping its repository-relative location (as in v1).
 - Every blob and tree written is re-hashed and compared with its tree entry (§4). On any mismatch the result is `OBJECT_MISMATCH` and the output is never exposed.
 - Symlinks and submodules follow §5.
+- A tree entry named `.git` (in any case) is refused with `INVALID_PATH`, as are entry names that are empty, `.`, `..`, contain `/`, NUL, CR, LF or a backslash, or are not UTF-8. Names are NFC-normalized; two names that collide after normalization are `PATH_COLLISION`.
 - Limits (`max_tree_files`, `max_tree_bytes`) apply as in v1. Operators may need to raise them for whole-commit pins.
 
 The result adds `omitted: [{path, kind, reason}]`, listing every entry not created (§5). An empty list means the whole scope was materialized.
@@ -76,7 +79,7 @@ v1 keeps an independent SHA-256 digest because git objects are named by SHA-1. I
 **What remains is a SHA-1 collision:** an author prepares two colliding versions, one reviewed and the other swapped in later.
 - Doing that requires a chosen-prefix collision, which costs tens of thousands of dollars of compute.
 - The forger would have to be the author, i.e. one of the hive's own agents.
-- Git (since 2.13) and the major hosts use hardened SHA-1, which rejects the known collision patterns. hivepin SHOULD hash with the same detection.
+- Git (since 2.13) and the major hosts use hardened SHA-1, which rejects the known collision patterns. Objects reach a clone or the publication cache through git, so that detection applies when they arrive; hivepin's own re-hash then catches anything changed afterwards.
 
 A hive that needs more registers its repositories with `object_format: "sha256"`, which v1 already supports.
 
@@ -99,7 +102,8 @@ Omitting is never silent: `omitted` is part of the result, and a consumer that n
 ## 7. Compatibility
 
 - `verify` and `materialize` accept v1 and v2 pins. v1 pins keep exactly their v1 semantics, and old records stay verifiable.
-- `mint` emits v2. `--format v1` stays available for consumers that haven't moved yet.
+- `mint` emits v2. `--format 1` (library: `version=1`) stays available for consumers that haven't moved yet.
+- Library: `PinV2` is the v2 pin; `parse_pin` and `pin_from_dict` read either version. `Pin` remains the v1 pin.
 - The registry is unchanged (registry v1).
 - Deliverables: `pin-v2.schema.json`, the encoder and checks above, and tests (§9).
 

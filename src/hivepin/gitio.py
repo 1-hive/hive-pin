@@ -207,3 +207,55 @@ def fetch_refs(cache: Path, url: str, refs: list[str], *, timeout: float) -> Non
              timeout=timeout, allow_fail=True)
     if p.returncode != 0:
         raise PinError("REMOTE_UNAVAILABLE", f"fetch from {url} failed: {p.stderr.strip()}")
+
+
+# --------------------------------------------------------------------------- #
+# raw object access (v2 integrity, SPEC v2 §4)
+# --------------------------------------------------------------------------- #
+class ObjectReader:
+    """Reads raw git objects through one ``git cat-file --batch`` process.
+
+    Callers re-hash what they read (:func:`hivepin.canonical.git_object_oid`), so a
+    tampered object in a cache or clone is detected rather than trusted."""
+
+    def __init__(self, repo: Path, *, timeout: float = DEFAULT_TIMEOUT) -> None:
+        self._timeout = timeout
+        cmd = ["git", "-C", str(repo), *_BASE_ARGS, "cat-file", "--batch"]
+        try:
+            self._proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                          stderr=subprocess.DEVNULL, env={**os.environ, **_ENV})
+        except FileNotFoundError:
+            raise PinError("INTERNAL_ERROR", "git executable not found on PATH") from None
+
+    def read(self, oid: str, *, max_bytes: int) -> tuple[str, bytes]:
+        """(type, content) of the object named by a bare hex ``oid``."""
+        assert self._proc.stdin and self._proc.stdout
+        self._proc.stdin.write(oid.encode("ascii") + b"\n")
+        self._proc.stdin.flush()
+        header = self._proc.stdout.readline().decode("ascii", "replace").split()
+        if len(header) != 3 or header[0] != oid:
+            if len(header) == 2 and header[1] == "missing":
+                raise PinError("OBJECT_MISMATCH", f"object {oid[:12]} is missing from the repository")
+            raise PinError("INTERNAL_ERROR", f"unexpected cat-file header for {oid[:12]}: {header}")
+        typ, size = header[1], int(header[2])
+        if size > max_bytes:
+            # drain it so the batch stream stays in sync, then refuse
+            self._proc.stdout.read(size + 1)
+            raise PinError("LIMIT_EXCEEDED", f"object {oid[:12]} exceeds max_file_bytes ({max_bytes})")
+        data = self._proc.stdout.read(size)
+        self._proc.stdout.read(1)  # trailing LF
+        return typ, data
+
+    def close(self) -> None:
+        if self._proc.stdin:
+            self._proc.stdin.close()
+        try:
+            self._proc.wait(timeout=self._timeout)
+        except subprocess.TimeoutExpired:
+            self._proc.kill()
+
+    def __enter__(self) -> ObjectReader:
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self.close()

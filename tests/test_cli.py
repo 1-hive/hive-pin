@@ -31,7 +31,7 @@ def _registry_file(scenario):
 
 
 def test_mint_then_verify_then_materialize(scenario, tmp_path):
-    m = run(scenario, "mint", "workspace", "reports/result.md")
+    m = run(scenario, "mint", "--format", "1", "workspace", "reports/result.md")
     assert m.returncode == 0
     assert m.stdout.strip().startswith("{") and m.stderr == ""
     pin = m.stdout.strip()
@@ -47,7 +47,7 @@ def test_mint_then_verify_then_materialize(scenario, tmp_path):
 
 
 def test_json_mode_emits_one_object(scenario):
-    r = run(scenario, "--json", "mint", "workspace", "bin/run.sh")
+    r = run(scenario, "--json", "mint", "--format", "1", "workspace", "bin/run.sh")
     assert r.returncode == 0
     obj = json.loads(r.stdout)
     assert obj["status"] == "minted"
@@ -56,7 +56,7 @@ def test_json_mode_emits_one_object(scenario):
 
 
 def test_show_needs_no_repo_access(scenario):
-    m = run(scenario, "--json", "mint", "workspace", "reports/result.md")
+    m = run(scenario, "--json", "mint", "--format", "1", "workspace", "reports/result.md")
     envelope = json.loads(m.stdout)["pin"]
     s = run(scenario, "show", envelope)
     assert s.returncode == 0
@@ -71,7 +71,7 @@ def test_malformed_pin_goes_to_stderr_with_code_and_exit2(scenario):
 
 
 def test_verification_failure_exit3(scenario):
-    m = run(scenario, "--json", "mint", "workspace", "reports/result.md")
+    m = run(scenario, "--json", "mint", "--format", "1", "workspace", "reports/result.md")
     envelope = json.loads(m.stdout)["pin"]
     # a well-formed pin whose commit is not in the repo -> exit 3
     forged = envelope  # tamper the underlying bytes via show->edit is overkill; use a bad repo
@@ -86,7 +86,7 @@ def test_verification_failure_exit3(scenario):
 
 
 def test_error_json_mode_is_machine_readable(scenario):
-    r = run(scenario, "--json", "mint", "ghost", "x")
+    r = run(scenario, "--json", "mint", "--format", "1", "ghost", "x")
     assert r.returncode == 3
     obj = json.loads(r.stdout)
     assert obj == {"status": "error", "code": "UNKNOWN_REPOSITORY", **{k: obj[k] for k in obj
@@ -97,14 +97,14 @@ def test_error_json_mode_is_machine_readable(scenario):
 def test_unpublished_exit_code_is_3(scenario):
     scenario.write("reports/result.md", "local\n")
     scenario.commit_all("local only")
-    r = run(scenario, "mint", "workspace", "reports/result.md")
+    r = run(scenario, "mint", "--format", "1", "workspace", "reports/result.md")
     assert r.returncode == 3
     assert "COMMIT_NOT_PUBLISHED" in r.stderr
 
 
 def test_output_file_written_atomically(scenario, tmp_path):
     out = tmp_path / "thing.pin"
-    r = run(scenario, "mint", "workspace", "reports/result.md", "--output", str(out))
+    r = run(scenario, "mint", "--format", "1", "workspace", "reports/result.md", "--output", str(out))
     assert r.returncode == 0
     assert out.read_bytes().endswith(b"\n")
     # the file body (without the trailing LF) is canonical
